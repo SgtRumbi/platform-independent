@@ -207,14 +207,13 @@ PlatformAndroidHandleCommand(struct android_app *AppState, int32 Command) {
 
 void
 android_main(struct android_app *AppState) {
-    // Check if app-glue is linked with the app. (MUST be, bc .a-linked)
+    // Check if app-glue is linked with the app. (MUST be bc .a-linked)
     app_dummy();
 
     android_app_saved_state UserSavedState;
     ZeroInstance((size)&UserSavedState);
 
     // Cache your data here.
-    AppState->userData = 0;
     AppState->onAppCmd = PlatformAndroidHandleCommand;
     AppState->onInputEvent = PlatformAndroidHandleInputEvent;
     AppState->userData = &UserSavedState;
