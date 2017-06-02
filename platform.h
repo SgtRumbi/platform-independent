@@ -16,6 +16,9 @@ typedef int32 bool32;
 
 typedef size_t size;
 
+typedef float real32;
+typedef double real64;
+
 #define ZeroInstance(Instance) ZeroSize_((Instance), sizeof(Instance))
 #define ZeroArray(Array, ArrayCount) ZeroSize_((Array), (ArrayCount)*sizeof((Array)[0]))
 #define ZeroSize(Pointer, Size) ZeroSize_(Pointer, Size)
