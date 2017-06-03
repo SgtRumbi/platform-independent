@@ -6,7 +6,6 @@
 
 typedef void (*gl_buffer_data)(GLenum, GLsizeiptr, const GLvoid *, GLenum);
 typedef void (*gl_bind_buffer)(GLenum, uint32);
-
 typedef uint32 (*gl_create_shader)(GLenum);
 typedef void (*gl_shader_source)(uint32, GLsizei, const GLchar * const *, const GLint *);
 typedef void (*gl_compile_shader)(uint32);
@@ -286,9 +285,10 @@ main(int32 argc, char *argv[]) {
                     if(XWindow) {
                         XEvent CurrentXEvent;
                         bool32 Running = true;
+                        bool32 UseModernOpenGL = true;
 
                         loop_call LoopCallInfo = {};
-                        LoopCallInfo.RenderConfiguration = ModernContextSupported ?
+                        LoopCallInfo.RenderConfiguration = (ModernContextSupported && UseModernOpenGL) ?
                                                            LoopCallRenderConfiguration_HardwareAcceleratedModern :
                                                            LoopCallRenderConfiguration_HardwareAcceleratedLegacy;
                         LoopCallInfo.HardwareAcceleratedContextInitialized = true;
