@@ -2,7 +2,7 @@ Project platform-independent
 ============================
 
 TLDR;
-Currently this project looks as it wants to get a small, nifty and (very) advanced Pong-clone.
+Currently this project looks as it wants to get a small, nifty and (very) advanced Pong-clone. ;)
 -> todo: Rename project to something appropriate like super-pong ^^
 
 This project should be a tech-demonstration of stateless rendering and targeting multiple platforms using ~1 code base.
