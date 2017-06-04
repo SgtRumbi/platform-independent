@@ -17,7 +17,8 @@
             </intent-filter>
         </activity>
 
-        <activity android:name="android.app.NativeActivity">
+        <activity android:name="android.app.NativeActivity"
+            android:screenOrientation="landscape">
             <meta-data android:name="android.app.lib_name"
                 android:value="native-lib" />
         </activity>

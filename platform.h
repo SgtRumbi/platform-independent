@@ -1,6 +1,9 @@
 #if !defined(PLATFORM_H)
 
 #include <memory>
+#include <cstring>
+
+#define Assert(Expression) if(!(Expression)) {PlatformLogError("Expression: '%s' failed!", #Expression); __builtin_trap();}
 
 typedef unsigned char uint8;
 typedef signed char int8;
@@ -21,42 +24,9 @@ typedef size_t size;
 typedef float real32;
 typedef double real64;
 
-union v2 {
-    struct {
-        real32 x, y;
-    };
-    struct {
-        real32 u, v;
-    };
-    struct {
-        real32 a, b;
-    };
-    real32 E[2];
-};
+#include "math.h"
 
-inline v2
-V2() {
-    v2 Result = {};
-    return(Result);
-}
-
-inline v2
-V2(real32 Both) {
-    v2 Result;
-    Result.x = Both;
-    Result.y = Both;
-    return(Result);
-}
-
-inline v2
-V2(real32 X, real32 Y) {
-    v2 Result;
-    Result.x = X;
-    Result.y = Y;
-    return(Result);
-}
-
-#define ZeroInstance(Instance) ZeroSize_((Instance), sizeof(Instance))
+#define ZeroInstance(Instance) ZeroSize_((size)(Instance), sizeof(*(Instance)))
 #define ZeroArray(Array, ArrayCount) ZeroSize_((Array), (ArrayCount)*sizeof((Array)[0]))
 #define ZeroSize(Pointer, Size) ZeroSize_(Pointer, Size)
 inline void
@@ -73,9 +43,37 @@ enum loop_call_render_configuration {
     LoopCallRenderConfiguration_HardwareAcceleratedLegacy
 };
 
-struct loop_call {
+// Dummy...
+union device_input_information {
+    struct {
+        uint32 MaxTouchInputs;
+    } Handheld;
+    struct {
+        uint32 ScreenCount;
+    } Desktop;
+};
+
+struct device_information {
+    bool32 Handheld;
+    device_input_information InputInformation;
+};
+
+struct hardware_context_information {
     bool32 HardwareAcceleratedContextInitialized;
+    bool32 SupportsFrameBufferObjects;
+    bool32 EmbeddedOpenGL;
+    bool32 ModernContext;
+    uint32 OpenGLMajorVersion;
+    uint32 OpenGLMinorVersion;
+};
+
+struct loop_call {
+    device_information DeviceInformation;
     loop_call_render_configuration RenderConfiguration;
+    hardware_context_information HardwareContextInformation;
+
+    int32 WindowWidth;
+    int32 WindowHeight;
 };
 
 struct vertex_buffer {
@@ -106,6 +104,80 @@ PushElement_(vertex_buffer *Buffer, void *Data, int32 Size) {
         Buffer->Data[Buffer->Used++] = *Pointer++;
     }
 }
+
+inline void
+PushRectangle(vertex_buffer *VertexBuffer, v2 StartP, v2 EndP) {
+    v2 LeftLowerCornerP = StartP;
+    v2 LeftUpperCornerP = V2(StartP.x, EndP.y);
+    v2 RightLowerCornerP = V2(EndP.x, StartP.y);
+    v2 RightUpperCornerP = EndP;
+
+    PushV2(VertexBuffer, LeftLowerCornerP);
+    PushV2(VertexBuffer, RightUpperCornerP);
+    PushV2(VertexBuffer, RightLowerCornerP);
+
+    PushV2(VertexBuffer, LeftLowerCornerP);
+    PushV2(VertexBuffer, RightUpperCornerP);
+    PushV2(VertexBuffer, LeftUpperCornerP);
+}
+
+inline bool32
+IsExtensionSupported(const char *ExtensionsList, const char *Extension) {
+    bool32 Result = false;
+
+    if(ExtensionsList && Extension) {
+        const char *Start;
+        const char *Where;
+        const char *Terminator;
+
+        Where = strchr(Extension, ' ');
+        if (!Where && (*Extension != '\0')) {
+            for (Start = ExtensionsList;;
+                    ) {
+                Where = strstr(Start, Extension);
+
+                if (Where) {
+                    Terminator = Where + strlen(Extension);
+
+                    if ((Where == Start) || (*(Where - 1) == ' ')) {
+                        if ((*Terminator == ' ') || (*Terminator == '\0')) {
+                            Result = true;
+                            break;
+                        }
+                    }
+
+                    Start = Terminator;
+                } else {
+                    break;
+                }
+            }
+        } else {
+            Result = false;
+        }
+    }
+
+    return(Result);
+}
+
+#ifndef GL_VERTEX_SHADER
+#define GL_VERTEX_SHADER 0x8B31
+#endif
+
+#ifndef GL_FRAGMENT_SHADER
+#define GL_FRAGMENT_SHADER 0x8B30
+#endif
+
+#ifndef GL_STREAM_DRAW
+#define GL_STREAM_DRAW 0x88E0
+#endif
+
+// NOTE(js): Just pre-definition. Should be 'implemented' in platform-layer.
+#define PlatformLogInfo(...)
+#define PlatformLogWarn(...)
+#define PlatformLogError(...)
+
+#define InvalidCodePath Assert(!("Invalid code path."))
+#define InvalidDefaultCase default: {InvalidCodePath;} break
 
 #define PLATFORM_H
 #endif // PLATFORM_H

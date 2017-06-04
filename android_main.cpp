@@ -10,10 +10,43 @@
 #if (!defined(__ANDROID__)) || (!defined(ANDROID))
 #include <GL/gl.h>
 #else
-#include <GLES/gl.h>
+#include <GLES/glext.h>
+#include <GLES2/gl2.h>
 #endif
 
 #include "platform.h"
+
+// typedef void (*gl_buffer_data)(GLenum, GLsizeiptr, const GLvoid *, GLenum);
+// typedef void (*gl_bind_buffer)(GLenum, uint32);
+/* typedef uint32 (*gl_create_shader)(GLenum);
+typedef void (*gl_shader_source)(uint32, GLsizei, const GLchar * const *, const GLint *);
+typedef void (*gl_compile_shader)(uint32);
+typedef uint32 (*gl_create_program)(void);
+typedef void (*gl_attach_shader)(uint32, uint32);
+typedef void (*gl_link_program)(uint32);
+typedef void (*gl_use_program)(uint32);
+typedef void (*gl_vertex_attrib_pointer)(uint32, int32, GLenum, GLboolean, GLsizei, const GLvoid *);
+typedef int32 (*gl_get_attrib_location)(uint32, const char *);
+typedef void (*gl_enable_vertex_attrib_array)(uint32);
+typedef void (*gl_disable_vertex_attrib_array)(uint32);
+typedef void (*gl_bind_framebuffer)(GLenum, uint32);
+typedef void (*gl_framebuffer_texture)(GLenum, GLenum, uint32, int32);
+
+// static gl_buffer_data glBufferData;
+// static gl_bind_buffer glBindBuffer;
+static gl_create_shader glCreateShader;
+static gl_shader_source glShaderSource;
+static gl_compile_shader glCompileShader;
+static gl_attach_shader glAttachShader;
+static gl_create_program glCreateProgram;
+static gl_link_program glLinkProgram;
+static gl_use_program glUseProgram;
+static gl_vertex_attrib_pointer glVertexAttribPointer;
+static gl_get_attrib_location glGetAttribLocation;
+static gl_enable_vertex_attrib_array glEnableVertexAttribArray;
+static gl_disable_vertex_attrib_array glDisableVertexAttribArray;
+static gl_bind_framebuffer glBindFramebuffer;
+static gl_framebuffer_texture glFramebufferTexture; */
 
 #define AndroidLogInfo(...) ((void)__android_log_print(ANDROID_LOG_INFO, "demo-app", __VA_ARGS__))
 #define AndroidLogWarn(...) ((void)__android_log_print(ANDROID_LOG_WARN, "demo-app", __VA_ARGS__))
@@ -30,6 +63,10 @@ struct android_app_saved_state {
     int32 SurfaceWidth;
     int32 SurfaceHeight;
     bool32 OpenGLInitialized;
+    bool32 ModernOpenGLContext;
+    bool32 OpenGLSupportsFrameBufferObjects;
+    uint32 OpenGLMajorVersion;
+    uint32 OpenGLMinorVersion;
 };
 
 // TODO(js): Make these NOT globals bc globals are evil.
@@ -39,8 +76,9 @@ static EGLContext GlobalHardwareAcceleratedContext;
 
 static void
 AndroidLogOpenGLESContextInformation() {
-    AndroidLogInfo("Loaded graphics driver %s (%s, by %s).\nFollowing extensions are supported:\n%s",
-                   glGetString(GL_VERSION), glGetString(GL_RENDERER), glGetString(GL_VENDOR), glGetString(GL_EXTENSIONS));
+    AndroidLogInfo("Loaded graphics driver %s (%s, by %s).\nShading Language Version: %s",
+                   glGetString(GL_VERSION), glGetString(GL_RENDERER), glGetString(GL_VENDOR),
+                   glGetString(GL_SHADING_LANGUAGE_VERSION));
 }
 
 static void
@@ -51,11 +89,16 @@ InitHardwareAcceleratedContext(ANativeWindow *AndroidWindow, android_app_saved_s
     int32 GreenBits = 8;
     int32 RedBits = 8;
 
-    const EGLint Attributes[] = {
+    const EGLint Attributes[9] = {
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
             EGL_BLUE_SIZE, BlueBits,
             EGL_GREEN_SIZE, GreenBits,
             EGL_RED_SIZE, RedBits,
+            EGL_NONE
+    };
+
+    const EGLint ContextAttributeList[3] = {
+            EGL_CONTEXT_CLIENT_VERSION, 2,
             EGL_NONE
     };
 
@@ -112,7 +155,58 @@ InitHardwareAcceleratedContext(ANativeWindow *AndroidWindow, android_app_saved_s
 
                 eglGetConfigAttrib(GlobalHardwareAcceleratedDisplay, Configuration, EGL_NATIVE_VISUAL_ID, &Format);
                 GlobalHardwareAcceleratedSurface = eglCreateWindowSurface(GlobalHardwareAcceleratedDisplay, Configuration, AndroidWindow, 0);
-                GlobalHardwareAcceleratedContext = eglCreateContext(GlobalHardwareAcceleratedDisplay, Configuration, 0, 0);
+                GlobalHardwareAcceleratedContext = eglCreateContext(GlobalHardwareAcceleratedDisplay, Configuration, 0, ContextAttributeList);
+                const char *OpenGLExtensionsString = "GL_ARB_vertex_buffer_object GL_ARB_shader_objects GL_ARB_vertex_program GL_ARB_vertex_shader GL_ARB_framebuffer_object";
+
+                bool32 ModernContextSupported = true;
+                bool32 SupportsFrameBufferObjects = false;
+
+                /* if(IsExtensionSupported(OpenGLExtensionsString, "GL_ARB_vertex_buffer_object")) {
+                    // glBufferData = (gl_buffer_data)eglGetProcAddress((const GLubyte *)"glBufferData");
+                    // glBindBuffer = (gl_bind_buffer)eglGetProcAddress((const GLubyte *)"glBindBuffer");
+                } else {
+                    ModernContextSupported = false;
+                    PlatformLogError("GL_ARB_vertex_buffer_object is not supported.");
+                }
+
+                glCreateShader = (gl_create_shader)eglGetProcAddress("glCreateShader");
+                glShaderSource = (gl_shader_source)eglGetProcAddress("glShaderSource");
+                glCompileShader = (gl_compile_shader)eglGetProcAddress("glCompileShader");
+                glCreateProgram = (gl_create_program)eglGetProcAddress("glCreateProgram");
+                glAttachShader = (gl_attach_shader)eglGetProcAddress("glAttachShader");
+                glLinkProgram = (gl_link_program)eglGetProcAddress("glLinkProgram");
+                glUseProgram = (gl_use_program)eglGetProcAddress("glUseProgram");
+
+                if(IsExtensionSupported(OpenGLExtensionsString, "GL_ARB_shader_objects")) {
+                } else {
+                    ModernContextSupported = false;
+                    PlatformLogError("GL_ARB_shader_objects is not supported.");
+                }
+
+                glVertexAttribPointer = (gl_vertex_attrib_pointer)eglGetProcAddress("glVertexAttribPointer");
+
+                if(IsExtensionSupported(OpenGLExtensionsString, "GL_ARB_vertex_program")) {
+                } else {
+                    ModernContextSupported = false;
+                    PlatformLogError("GL_ARB_vertex_program is not supported.");
+                }
+
+                glGetAttribLocation = (gl_get_attrib_location)eglGetProcAddress("glGetAttribLocation");
+                glEnableVertexAttribArray = (gl_enable_vertex_attrib_array)eglGetProcAddress("glEnableVertexAttribArray");
+                glDisableVertexAttribArray = (gl_disable_vertex_attrib_array)eglGetProcAddress("glDisableVertexAttribArray");
+
+                if(IsExtensionSupported(OpenGLExtensionsString, "GL_ARB_vertex_shader")) {
+                } else {
+                    ModernContextSupported = false;
+                    PlatformLogError("GL_ARB_vertex_shader is not supported.");
+                }
+
+                if(IsExtensionSupported(OpenGLExtensionsString, "GL_ARB_framebuffer_object")) {
+                    SupportsFrameBufferObjects = true;
+
+                    glBindFramebuffer = (gl_bind_framebuffer)eglGetProcAddress("glBindFramebuffer");
+                    glFramebufferTexture = (gl_framebuffer_texture)eglGetProcAddress("glFramebufferTexture");
+                } */
 
                 // TODO(js): Interesting: Read-buffer == Write-buffer!? Canvas-like?
                 if(eglMakeCurrent(GlobalHardwareAcceleratedDisplay, GlobalHardwareAcceleratedSurface,
@@ -155,6 +249,7 @@ InitHardwareAcceleratedContext(ANativeWindow *AndroidWindow, android_app_saved_s
 
                     // For legacy OpenGL and 3D in legacy:
                     // GL_PERSPECTIVE_CORRECTION_HINT tends to fall back to a linear color interpolation...
+#if 0
                     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
                     glShadeModel(GL_SMOOTH);
 
@@ -164,15 +259,21 @@ InitHardwareAcceleratedContext(ANativeWindow *AndroidWindow, android_app_saved_s
 
                     // TODO(js): Check: if there is a depth-buffer...
                     glDisable(GL_DEPTH_TEST);
+#endif
+
+                    AndroidLogOpenGLESContextInformation();
+
+                    // const char *OpenGLExtensionsString = (const char *)glGetString(GL_EXTENSIONS);
 
                     SavedState->SurfaceWidth = Width;
                     SavedState->SurfaceHeight = Height;
 
                     SavedState->OpenGLInitialized = true;
-
-                    AndroidLogOpenGLESContextInformation();
-
-
+                    SavedState->ModernOpenGLContext = ModernContextSupported;
+                    SavedState->OpenGLSupportsFrameBufferObjects = SupportsFrameBufferObjects;
+                    // TODO(js): Make un-hardcoded.
+                    SavedState->OpenGLMajorVersion = 2;
+                    SavedState->OpenGLMinorVersion = 0;
                 } else {
                     CurrentError = eglGetError();
                     AndroidLogError("Failed to make OpenGL (ES) context current! (Possible error: 0x%x)", CurrentError);
@@ -202,6 +303,9 @@ PlatformAndroidHandleCommand(struct android_app *AppState, int32 Command) {
             InitHardwareAcceleratedContext(AppState->window,
                                            (android_app_saved_state *)AppState->userData);
         } break;
+
+        default: {
+        } break;
     }
 }
 
@@ -211,7 +315,7 @@ android_main(struct android_app *AppState) {
     app_dummy();
 
     android_app_saved_state UserSavedState;
-    ZeroInstance((size)&UserSavedState);
+    ZeroInstance(&UserSavedState);
 
     // Cache your data here.
     AppState->onAppCmd = PlatformAndroidHandleCommand;
@@ -219,7 +323,6 @@ android_main(struct android_app *AppState) {
     AppState->userData = &UserSavedState;
 
     loop_call LoopCallInfo = {};
-    LoopCallInfo.RenderConfiguration = LoopCallRenderConfiguration_HardwareAcceleratedModern;
 
     while(1) {
         int32 LooperID;
@@ -248,7 +351,18 @@ android_main(struct android_app *AppState) {
             }
         }
 
-        LoopCallInfo.HardwareAcceleratedContextInitialized = UserSavedState.OpenGLInitialized;
+        LoopCallInfo.HardwareContextInformation.HardwareAcceleratedContextInitialized = UserSavedState.OpenGLInitialized;
+        LoopCallInfo.HardwareContextInformation.ModernContext = UserSavedState.ModernOpenGLContext;
+        LoopCallInfo.RenderConfiguration = UserSavedState.ModernOpenGLContext
+                                           ? LoopCallRenderConfiguration_HardwareAcceleratedModern
+                                           : LoopCallRenderConfiguration_HardwareAcceleratedLegacy;
+        LoopCallInfo.HardwareContextInformation.SupportsFrameBufferObjects = UserSavedState.OpenGLSupportsFrameBufferObjects;
+        LoopCallInfo.HardwareContextInformation.EmbeddedOpenGL = true;
+        LoopCallInfo.HardwareContextInformation.OpenGLMajorVersion = UserSavedState.OpenGLMajorVersion;
+        LoopCallInfo.HardwareContextInformation.OpenGLMinorVersion = UserSavedState.OpenGLMinorVersion;
+
+        LoopCallInfo.WindowWidth = UserSavedState.SurfaceWidth;
+        LoopCallInfo.WindowHeight = UserSavedState.SurfaceHeight;
 
         // Draw frame / flush back buffer
         LoopCall(&LoopCallInfo);

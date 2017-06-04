@@ -17,6 +17,10 @@ typedef void (*gl_vertex_attrib_pointer)(uint32, int32, GLenum, GLboolean, GLsiz
 typedef int32 (*gl_get_attrib_location)(uint32, const char *);
 typedef void (*gl_enable_vertex_attrib_array)(uint32);
 typedef void (*gl_disable_vertex_attrib_array)(uint32);
+typedef void (*gl_bind_framebuffer)(GLenum, uint32);
+typedef void (*gl_framebuffer_texture)(GLenum, GLenum, uint32, int32);
+typedef void (*gl_get_shaderiv)(uint32, GLenum, int32 *);
+typedef void (*gl_get_shader_info_log)(uint32, GLsizei, GLsizei *, char *);
 
 static gl_buffer_data glBufferData;
 static gl_bind_buffer glBindBuffer;
@@ -31,9 +35,18 @@ static gl_vertex_attrib_pointer glVertexAttribPointer;
 static gl_get_attrib_location glGetAttribLocation;
 static gl_enable_vertex_attrib_array glEnableVertexAttribArray;
 static gl_disable_vertex_attrib_array glDisableVertexAttribArray;
+static gl_bind_framebuffer glBindFramebuffer;
+static gl_framebuffer_texture glFramebufferTexture;
+static gl_get_shaderiv glGetShaderiv;
+static gl_get_shader_info_log glGetShaderInfoLog;
 
-#define PlatformLogInfo(...) printf(__VA_ARGS__); printf("\n")
-#define PlatformLogError(...) printf(__VA_ARGS__); printf("\n")
+#define PlatformLogInfo(...) LinuxLogInfo(__VA_ARGS__)
+#define PlatformLogWarn(...) LinuxLogWarn(__VA_ARGS__)
+#define PlatformLogError(...) LinuxLogError(__VA_ARGS__)
+
+#define LinuxLogInfo(...) printf(__VA_ARGS__); printf("\n")
+#define LinuxLogWarn(...) printf(__VA_ARGS__); printf("\n")
+#define LinuxLogError(...) printf(__VA_ARGS__); printf("\n")
 
 // Above X11 bc defines... :/
 #include "pfind.cpp"
@@ -43,49 +56,19 @@ static gl_disable_vertex_attrib_array glDisableVertexAttribArray;
 
 typedef GLXContext (*glx_create_context_attribs_arb)(Display *, GLXFBConfig, GLXContext, Bool, const int *);
 
-static bool32
-IsExtensionSupported(const char *ExtensionsList, const char *Extension) {
-    bool32 Result = false;
-
-    const char *Start;
-    const char *Where;
-    const char *Terminator;
-
-    Where = strchr(Extension, ' ');
-    if(!Where && (*Extension != '\0')) {
-        for(Start = ExtensionsList;
-            ;
-            ) {
-            Where = strstr(Start, Extension);
-
-            if(Where) {
-                Terminator = Where + strlen(Extension);
-
-                if((Where == Start) || (*(Where - 1) == ' ')) {
-                    if((*Terminator == ' ') || (*Terminator == '\0')) {
-                        Result = true;
-                        break;
-                    }
-                }
-
-                Start = Terminator;
-            } else {
-                break;
-            }
-        }
-    } else {
-        Result = false;
-    }
-
-    return(Result);
-}
-
 typedef int32 (*old_handler)(Display *, XErrorEvent *);
 static bool32 GLXContextErrorOccurred = false;
 static int32
 GLXContextErrorHandler(Display *XDisplay, XErrorEvent *ErrorEvent) {
     GLXContextErrorOccurred = true;
     return(0);
+}
+
+static void
+LinuxLogOpenGLContextInformation() {
+    LinuxLogInfo("Loaded graphics driver %s (%s, by %s).\nShading Language Version: %s\nExtension: %s",
+                 glGetString(GL_VERSION), glGetString(GL_RENDERER), glGetString(GL_VENDOR),
+                 glGetString(GL_SHADING_LANGUAGE_VERSION), glGetString(GL_EXTENSIONS));
 }
 
 int32
@@ -240,6 +223,8 @@ main(int32 argc, char *argv[]) {
 
                     glXMakeCurrent(XDisplay, XWindow, Context);
 
+                    LinuxLogOpenGLContextInformation();
+
                     const char *OpenGLExtensionsString = (const char *)glGetString(GL_EXTENSIONS);
                     PlatformLogInfo("OpenGL-Extensions: %s", OpenGLExtensionsString);
 
@@ -261,6 +246,8 @@ main(int32 argc, char *argv[]) {
                         glAttachShader = (gl_attach_shader)glXGetProcAddress((const GLubyte *)"glAttachShader");
                         glLinkProgram = (gl_link_program)glXGetProcAddress((const GLubyte *)"glLinkProgram");
                         glUseProgram = (gl_use_program)glXGetProcAddressARB((const GLubyte *)"glUseProgram");
+                        glGetShaderiv = (gl_get_shaderiv)glXGetProcAddressARB((const GLubyte *)"glGetShaderiv");
+                        glGetShaderInfoLog = (gl_get_shader_info_log)glXGetProcAddressARB((const GLubyte *)"glGetShaderInfoLog");
                     } else {
                         ModernContextSupported = false;
                         PlatformLogError("GL_ARB_shader_objects is not supported.");
@@ -282,6 +269,14 @@ main(int32 argc, char *argv[]) {
                         PlatformLogError("GL_ARB_vertex_shader is not supported.");
                     }
 
+                    bool32 SupportsFrameBufferObjects = false;
+                    if(IsExtensionSupported(OpenGLExtensionsString, "GL_ARB_framebuffer_object")) {
+                        SupportsFrameBufferObjects = true;
+
+                        glBindFramebuffer = (gl_bind_buffer)glXGetProcAddressARB((const GLubyte *)"glBindFramebuffer");
+                        glFramebufferTexture = (gl_framebuffer_texture)glXGetProcAddressARB((const GLubyte *)"glFramebufferTexture");
+                    }
+
                     if(XWindow) {
                         XEvent CurrentXEvent;
                         bool32 Running = true;
@@ -291,7 +286,15 @@ main(int32 argc, char *argv[]) {
                         LoopCallInfo.RenderConfiguration = (ModernContextSupported && UseModernOpenGL) ?
                                                            LoopCallRenderConfiguration_HardwareAcceleratedModern :
                                                            LoopCallRenderConfiguration_HardwareAcceleratedLegacy;
-                        LoopCallInfo.HardwareAcceleratedContextInitialized = true;
+                        LoopCallInfo.HardwareContextInformation.HardwareAcceleratedContextInitialized = true;
+                        LoopCallInfo.HardwareContextInformation.SupportsFrameBufferObjects = SupportsFrameBufferObjects;
+                        LoopCallInfo.HardwareContextInformation.EmbeddedOpenGL = false;
+                        // TODO(js): Query/Make un-hardcoded... :)
+                        LoopCallInfo.HardwareContextInformation.OpenGLMajorVersion = 3;
+                        LoopCallInfo.HardwareContextInformation.OpenGLMajorVersion = 0;
+                        LoopCallInfo.HardwareContextInformation.ModernContext = ModernContextSupported;
+
+                        XWindowAttributes WindowAttributes;
 
                         while(Running) {
                             XNextEvent(XDisplay, &CurrentXEvent);
@@ -303,7 +306,14 @@ main(int32 argc, char *argv[]) {
                                 case KeyPress: {
                                     Running = false;
                                 } break;
+
+                                InvalidDefaultCase;
                             }
+
+                            XGetWindowAttributes(XDisplay, XWindow, &WindowAttributes);
+
+                            LoopCallInfo.WindowWidth = WindowAttributes.width;
+                            LoopCallInfo.WindowHeight = WindowAttributes.height;
 
                             LoopCall(&LoopCallInfo);
 
