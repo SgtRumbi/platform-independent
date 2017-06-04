@@ -1,6 +1,15 @@
 #include <cstdio>
 #include <cstring>
 #include <GL/gl.h>
+#include <sys/mman.h>
+
+#define PlatformLogInfo(...) LinuxLogInfo(__VA_ARGS__)
+#define PlatformLogWarn(...) LinuxLogWarn(__VA_ARGS__)
+#define PlatformLogError(...) LinuxLogError(__VA_ARGS__)
+
+#define LinuxLogInfo(...) printf(__VA_ARGS__); printf("\n")
+#define LinuxLogWarn(...) printf(__VA_ARGS__); printf("\n")
+#define LinuxLogError(...) printf(__VA_ARGS__); printf("\n")
 
 #include "platform.h"
 
@@ -40,14 +49,6 @@ static gl_framebuffer_texture glFramebufferTexture;
 static gl_get_shaderiv glGetShaderiv;
 static gl_get_shader_info_log glGetShaderInfoLog;
 
-#define PlatformLogInfo(...) LinuxLogInfo(__VA_ARGS__)
-#define PlatformLogWarn(...) LinuxLogWarn(__VA_ARGS__)
-#define PlatformLogError(...) LinuxLogError(__VA_ARGS__)
-
-#define LinuxLogInfo(...) printf(__VA_ARGS__); printf("\n")
-#define LinuxLogWarn(...) printf(__VA_ARGS__); printf("\n")
-#define LinuxLogError(...) printf(__VA_ARGS__); printf("\n")
-
 // Above X11 bc defines... :/
 #include "pfind.cpp"
 
@@ -69,6 +70,16 @@ LinuxLogOpenGLContextInformation() {
     LinuxLogInfo("Loaded graphics driver %s (%s, by %s).\nShading Language Version: %s\nExtension: %s",
                  glGetString(GL_VERSION), glGetString(GL_RENDERER), glGetString(GL_VENDOR),
                  glGetString(GL_SHADING_LANGUAGE_VERSION), glGetString(GL_EXTENSIONS));
+}
+
+static void
+LinuxInitializeAppMemory(app_memory *AppMemory, uint64 TransientMemorySize, uint64 PermanentMemorySize) {
+    AppMemory->TransientMemorySize = TransientMemorySize;
+    AppMemory->PermanentMemorySize = PermanentMemorySize;
+    memory_index BasePointer = 0;
+    uint64 TotalMemorySize = AppMemory->TransientMemorySize + AppMemory->PermanentMemorySize;
+    AppMemory->PermanentMemory = mmap((void *)BasePointer, TotalMemorySize, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    AppMemory->TransientMemory = ((uint8 *)AppMemory->PermanentMemory + AppMemory->PermanentMemorySize);
 }
 
 int32
@@ -226,7 +237,7 @@ main(int32 argc, char *argv[]) {
                     LinuxLogOpenGLContextInformation();
 
                     const char *OpenGLExtensionsString = (const char *)glGetString(GL_EXTENSIONS);
-                    PlatformLogInfo("OpenGL-Extensions: %s", OpenGLExtensionsString);
+                    // PlatformLogInfo("OpenGL-Extensions: %s", OpenGLExtensionsString);
 
                     bool32 ModernContextSupported = true;
 
@@ -278,12 +289,16 @@ main(int32 argc, char *argv[]) {
                     }
 
                     if(XWindow) {
+                        app_memory AppMemory;
+                        LinuxInitializeAppMemory(&AppMemory, Gigabytes(2), Megabytes(32));
+
                         XEvent CurrentXEvent;
                         bool32 Running = true;
-                        bool32 UseModernOpenGL = true;
+                        bool32 ShouldUseModernOpenGL = false;
+                        bool32 UseModernOpenGL = (ModernContextSupported && ShouldUseModernOpenGL);
 
                         loop_call LoopCallInfo = {};
-                        LoopCallInfo.RenderConfiguration = (ModernContextSupported && UseModernOpenGL) ?
+                        LoopCallInfo.RenderConfiguration = UseModernOpenGL ?
                                                            LoopCallRenderConfiguration_HardwareAcceleratedModern :
                                                            LoopCallRenderConfiguration_HardwareAcceleratedLegacy;
                         LoopCallInfo.HardwareContextInformation.HardwareAcceleratedContextInitialized = true;
@@ -292,7 +307,8 @@ main(int32 argc, char *argv[]) {
                         // TODO(js): Query/Make un-hardcoded... :)
                         LoopCallInfo.HardwareContextInformation.OpenGLMajorVersion = 3;
                         LoopCallInfo.HardwareContextInformation.OpenGLMajorVersion = 0;
-                        LoopCallInfo.HardwareContextInformation.ModernContext = ModernContextSupported;
+                        LoopCallInfo.HardwareContextInformation.ModernContext = UseModernOpenGL;
+                        LoopCallInfo.AppMemory = AppMemory;
 
                         XWindowAttributes WindowAttributes;
 

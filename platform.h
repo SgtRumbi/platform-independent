@@ -25,17 +25,7 @@ typedef float real32;
 typedef double real64;
 
 #include "math.h"
-
-#define ZeroInstance(Instance) ZeroSize_((size)(Instance), sizeof(*(Instance)))
-#define ZeroArray(Array, ArrayCount) ZeroSize_((Array), (ArrayCount)*sizeof((Array)[0]))
-#define ZeroSize(Pointer, Size) ZeroSize_(Pointer, Size)
-inline void
-ZeroSize_(size Pointer, size Size) {
-    uint8 *BytePointer = (uint8 *)Pointer;
-    while(Size--) {
-        *BytePointer++ = 0;
-    }
-}
+#include "app_memory.h"
 
 enum loop_call_render_configuration {
     LoopCallRenderConfiguration_Buffer,
@@ -74,6 +64,8 @@ struct loop_call {
 
     int32 WindowWidth;
     int32 WindowHeight;
+
+    app_memory AppMemory;
 };
 
 struct vertex_buffer {
@@ -83,9 +75,9 @@ struct vertex_buffer {
 };
 
 inline vertex_buffer
-CreateVertexBuffer(uint32 RequestedSizeBytes) {
+CreateVertexBuffer(memory_area *MemoryArea, uint32 RequestedSizeBytes) {
     vertex_buffer Result;
-    Result.Data = (uint8 *)malloc(RequestedSizeBytes);
+    Result.Data = (uint8 *)PushSize(MemoryArea, RequestedSizeBytes);
     if(Result.Data) {
         Result.Size = RequestedSizeBytes;
     } else {
@@ -172,12 +164,16 @@ IsExtensionSupported(const char *ExtensionsList, const char *Extension) {
 #endif
 
 // NOTE(js): Just pre-definition. Should be 'implemented' in platform-layer.
-#define PlatformLogInfo(...)
-#define PlatformLogWarn(...)
-#define PlatformLogError(...)
+// #define PlatformLogInfo(...)
+// #define PlatformLogWarn(...)
+// #define PlatformLogError(...)
 
 #define InvalidCodePath Assert(!("Invalid code path."))
 #define InvalidDefaultCase default: {InvalidCodePath;} break
+
+#define Kilobytes(KBs) ((KBs)*1024L)
+#define Megabytes(MBs) (Kilobytes(MBs)*1024L)
+#define Gigabytes(GBs) (Megabytes(GBs)*1024L)
 
 #define PLATFORM_H
 #endif // PLATFORM_H

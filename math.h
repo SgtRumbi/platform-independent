@@ -1,5 +1,16 @@
 #if !defined(PFIND_MATH_H)
 
+#include <cmath>
+
+inline real32
+SquareRoot(real32 R) {
+    real32 Result;
+
+    Result = sqrtf(R);
+
+    return(Result);
+}
+
 union v2 {
     struct {
         real32 x, y;
@@ -97,6 +108,14 @@ operator-(v2 A, v2 B) {
 }
 
 inline v2
+operator+(v2 A, real32 B) {
+    v2 Result;
+    Result.X = A.X + B;
+    Result.Y = A.Y + B;
+    return(Result);
+}
+
+inline v2
 operator*(v2 A, v2 B) {
     v2 Result;
     Result.X = A.X*B.X;
@@ -105,10 +124,54 @@ operator*(v2 A, v2 B) {
 }
 
 inline v2
+operator*(real32 A, v2 B) {
+    v2 Result;
+    Result.X = A*B.X;
+    Result.Y = A*B.Y;
+    return(Result);
+}
+
+inline v2
 operator/(v2 A, v2 B) {
     v2 Result;
     Result.X = A.X/B.X;
     Result.Y = A.Y/B.Y;
+    return(Result);
+}
+
+inline v2
+operator/(v2 A, real32 B) {
+    v2 Result;
+    Result.X = A.X/B;
+    Result.Y = A.Y/B;
+    return(Result);
+}
+
+inline real32
+Dot(v2 A, v2 B) {
+    real32 Result = A.X*B.X + A.Y*A.Y;
+    return(Result);
+}
+
+inline real32
+Length(v2 V) {
+    real32 Result;
+    Result = SquareRoot(V.X*V.X + V.Y*V.Y);
+    return(Result);
+}
+
+inline v2
+Normalize(v2 V) {
+    v2 Result;
+    Result = V/Length(V);
+    return(Result);
+}
+
+inline v2
+Reflect(v2 Vector, v2 Normal) {
+    // TODO(js): Make this work...
+    // v2 NormalizedNormal = Normalize(Normal);
+    v2 Result = Vector - 2.0f*Dot(Vector, Normal)*Normal;
     return(Result);
 }
 
@@ -196,6 +259,16 @@ V4(real32 X, real32 Y, real32 Z) {
     Result.Y = Y;
     Result.Z = Z;
     Result.W = 1.0f;
+    return(Result);
+}
+
+inline v4
+V4(real32 X, real32 Y, real32 Z, real32 W) {
+    v4 Result;
+    Result.X = X;
+    Result.Y = Y;
+    Result.Z = Z;
+    Result.W = W;
     return(Result);
 }
 
