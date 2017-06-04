@@ -31,11 +31,6 @@ LoopCall(loop_call *LoopCallInformation) {
     static memory_area RenderMemoryArea = {};
 
     if(!Initialized) {
-        /* v2 Test = V2(1.0f, -1.0f);
-        v2 Normal = V2(0.0f, 1.0f);
-        v2 Reflected = Reflect(Test, Normal);
-        PlatformLogInfo("Reflected: (%f, %f)", Reflected.X, Reflected.Y); */
-
         Initialized = true;
 
         PongGameState.BallP = V2(0.0f);
