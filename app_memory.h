@@ -63,7 +63,7 @@ PushSize_(memory_area *Area, memory_index Size) {
     Assert((Area->Used + Size) <= Area->Size);
     void *Result = Area->BasePointer + Area->Used;
     Area->Used += Size;
-    return(Area);
+    return(Result);
 }
 
 #define ZeroInstance(Instance) ZeroSize_((size)(Instance), sizeof(*(Instance)))

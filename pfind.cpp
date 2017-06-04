@@ -28,8 +28,8 @@ LoopCall(loop_call *LoopCallInformation) {
     static bool32 Initialized = false;
     static render_queue RenderQueue;
     static pong_game_state PongGameState;
+    static memory_area RenderMemoryArea = {};
 
-    memory_area RenderMemoryArea;
     if(!Initialized) {
         /* v2 Test = V2(1.0f, -1.0f);
         v2 Normal = V2(0.0f, 1.0f);
@@ -46,17 +46,17 @@ LoopCall(loop_call *LoopCallInformation) {
         InitializeMemoryArea(&RenderMemoryArea, Megabytes(16), (uint8 *)LoopCallInformation->AppMemory.TransientMemory);
     }
 
-    uint8 *BasePointer = RenderMemoryArea.BasePointer;
     temporary_memory RenderMemory = BeginTemporaryMemory(&RenderMemoryArea);
-    RenderQueue = GenerateRenderQueue(&RenderMemoryArea, Megabytes(1));
+    RenderQueue = GenerateRenderQueue(&RenderMemoryArea, Megabytes(4));
 
     if(LoopCallInformation->HardwareContextInformation.HardwareAcceleratedContextInitialized) {
+        PushViewport(&RenderQueue, 0, 0, LoopCallInformation->WindowWidth, LoopCallInformation->WindowHeight);
+
         PushClear(&RenderQueue, 0.0f, 0.0f, 0.0f, 1.0f);
 
-        PlatformLogInfo("Test info.");
-        // PushRectangle(&RenderQueue, PongGameState.PaddleLeftP, V2(0.2f, 0.75f), V4(1.0f));
-        // PushRectangle(&RenderQueue, PongGameState.PaddleRightP, V2(0.2f, 0.75f), V4(1.0f));
-        // PushRectangle(&RenderQueue, PongGameState.BallP, V2(0.2f, 0.2f), V4(1.0f));
+        PushRectangle(&RenderQueue, PongGameState.PaddleLeftP, V2(0.2f, 0.75f), V4(1.0f));
+        PushRectangle(&RenderQueue, PongGameState.PaddleRightP, V2(0.2f, 0.75f), V4(1.0f));
+        PushRectangle(&RenderQueue, PongGameState.BallP, V2(0.2f, 0.2f), V4(1.0f));
 
         ExecuteRenderCommands(&RenderQueue, &LoopCallInformation->HardwareContextInformation, &RenderMemoryArea);
     }

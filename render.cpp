@@ -49,6 +49,7 @@ GenerateRenderQueue(memory_area *Area, uint64 RequestedSize) {
         PlatformLogError("Out of Memory Error. (requested %d bytes)", RequestedSize);
         Result.BufferSize = 0;
     }
+
     return(Result);
 }
 
@@ -106,9 +107,6 @@ ExecuteRenderCommands(render_queue *Queue, hardware_context_information *Hardwar
             LegacyContextInitialized = false;
 
             SingleRectangleVertexBuffer = CreateVertexBuffer(RenderMemory, 6*sizeof(real32));
-            /* SingleRectangleVertexBuffer.Used = 0;
-            SingleRectangleVertexBuffer.Data = Memory;
-            SingleRectangleVertexBuffer.Size = 6*sizeof(real32); */
 
             char VersionLine[255];
             ModernOpenGLBuildVersionLine(HardwareContextInformation, VersionLine, 255);
@@ -230,6 +228,14 @@ ExecuteRenderCommands(render_queue *Queue, hardware_context_information *Hardwar
                         BaseAddress += sizeof(*Entry);
                     } break;
 
+                    case RenderQueueEntryType_render_entry_viewport: {
+                        render_entry_viewport *Entry = (render_entry_viewport *)Header;
+
+                        glViewport(Entry->BeginX, Entry->BeginY, Entry->ToX, Entry->ToY);
+
+                        BaseAddress += sizeof(*Entry);
+                    } break;
+
                     InvalidDefaultCase;
                 }
             }
@@ -242,15 +248,12 @@ ExecuteRenderCommands(render_queue *Queue, hardware_context_information *Hardwar
             ModernContextInitialized = false;
 
             SingleRectangleVertexBuffer = CreateVertexBuffer(RenderMemory, 6*sizeof(real32));
-            /* SingleRectangleVertexBuffer.Used = 0;
-            SingleRectangleVertexBuffer.Data = Memory;
-            SingleRectangleVertexBuffer.Size = 6*sizeof(real32); */
         }
 
         if(LegacyContextInitialized) {
             for(uint32 BaseAddress = 0;
                 BaseAddress < Queue->BufferSizeUsed;
-                    ) {
+                ) {
                 render_queue_entry_header *Header = (render_queue_entry_header *)(Queue->Buffer + BaseAddress);
                 switch(Header->Type) {
                     case RenderQueueEntryType_render_entry_clear: {
@@ -273,6 +276,14 @@ ExecuteRenderCommands(render_queue *Queue, hardware_context_information *Hardwar
                         glVertexPointer(2, GL_FLOAT, 0, SingleRectangleVertexBuffer.Data);
                         glDrawArrays(GL_TRIANGLES, 0, 6);
                         glDisableClientState(GL_VERTEX_ARRAY);
+
+                        BaseAddress += sizeof(*Entry);
+                    } break;
+
+                    case RenderQueueEntryType_render_entry_viewport: {
+                        render_entry_viewport *Entry = (render_entry_viewport *)Header;
+
+                        glViewport(Entry->BeginX, Entry->BeginY, Entry->ToX, Entry->ToY);
 
                         BaseAddress += sizeof(*Entry);
                     } break;
